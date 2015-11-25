@@ -31,11 +31,9 @@ int main() {
 				while ((fd = accept(sd, (struct sockaddr*) &senderAddr, &ic)) != 0) {
 					printf("Client connected!\n");
 					read(fd, buffer, 255);
-					int result = 1;
-					while (strncmp(buffer, "exit", 4) != 0 && result != 0) {
+					while (strncmp(buffer, "exit", 4) != 0) {
 						printf("Client > %s", buffer);
 						read(fd, buffer, 255);
-						ioctl(fd, SIOGPGRP, &result);
 					}
 				}
 			} else {

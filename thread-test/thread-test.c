@@ -1,28 +1,24 @@
 #include <pthread.h>
 #include <stdio.h>
 
-// Test this code when the iLab machines are back up.
-// Try using locks next.
-
 void* decrement(void* param) {
-	int num = (int) (&param);
+	int* num = (int*) param;
 	int i = 0;
 	while (i < 100) {
-		num--;
-		printf("decrementing num: %d\n", num);
+		(*num)--;
+		printf("Decrementing num: %d\n", (*num));
 		i++;
 	}
 	return NULL;
 }
 void* increment(void* param) {
-	int num = (int) (&param);
+	int* num = (int*) param;
 	int i = 0;
 	while (i < 100) {
-		num++;
-		printf("incrementing num: %d\n", num);
+		(*num)++;
+		printf("Incrementing num: %d\n", (*num));
 		i++;
 	}
-	printf("increment()\n");
 	return NULL;
 }
 int main() {
