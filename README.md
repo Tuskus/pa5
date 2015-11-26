@@ -1,6 +1,4 @@
 ## TODO:
-#	multithreading, mutex locks
-#	send/receive threads
 #	multiple clients communicate to server
 #	command list
 

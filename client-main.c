@@ -1,10 +1,36 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 #include <netdb.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
+struct addrinfo* result;
+
+void* input(void* param) {
+	int* sd = (int*) param;
+	char buffer[256];
+	do {
+		printf("Enter what you want to say > ");
+		fgets(buffer, 255, stdin);
+		write((*sd), buffer, 255);
+	} while (strncmp(buffer, "exit", 4) != 0);
+	exit(0);
+	freeaddrinfo(result);
+	return NULL;
+}
+void* output(void* param) {
+	int* sd = (int*) param;
+	char buffer[256];
+	read((*sd), buffer, 255);
+	while (strncmp(buffer, "exit", 4) != 0) {
+		printf("\nServer > %s\nEnter what you want to say > ", buffer);
+		read((*sd), buffer, 255);
+	}
+	return NULL;
+}
 int main(int argc, char** argv) {
 	if (argc < 2) {
 		printf("You need to enter the address of the server. Exiting.\n");
@@ -19,10 +45,8 @@ int main(int argc, char** argv) {
 	request.ai_addr = NULL;
 	request.ai_canonname = NULL;
 	request.ai_next = NULL;
-	struct addrinfo* result;
 	getaddrinfo(argv[1], "63777", &request, &result);
 	int sd;
-	char buffer[256] = "Hello from the client!";
 	if ((sd = socket(result->ai_family, result->ai_socktype, result->ai_protocol)) >= 0) {
 		int on = 1;
 		if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == 0) {
@@ -31,11 +55,23 @@ int main(int argc, char** argv) {
 				printf("Still not connected...\n");
 			} while(errno == ECONNREFUSED);
 			printf("Connected to server!\n");
-			do {
-				printf("Enter what you want to say > ");
-				fgets(buffer, 255, stdin);
-				write(sd, buffer, 255);
-			} while (strncmp(buffer, "exit", 4) != 0);
+			pthread_t inputThread, outputThread;
+			if (pthread_create(&inputThread, NULL, input, &sd) != 0) {
+				printf("Error creating thread. Exiting.\n");
+				return -1;
+			}
+			if (pthread_create(&outputThread, NULL, output, &sd) != 0) {
+				printf("Error creating thread. Exiting.\n");
+				return -1;
+			}
+			if (pthread_join(inputThread, NULL) != 0) {
+				printf("Error joining thread. Exiting.\n");
+				return -1;
+			}
+			if (pthread_join(outputThread, NULL) != 0) {
+				printf("Error joining thread. Exiting.\n");
+				return -1;
+			}
 		} else {
 			printf("Socket options could not be set. Exiting.\n");
 			freeaddrinfo(result);
