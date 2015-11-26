@@ -12,8 +12,9 @@ struct addrinfo* result;
 void* input(void* param) {
 	int* sd = (int*) param;
 	char buffer[256];
+	write((*sd), "hello", 255);
 	do {
-		printf("Enter what you want to say > ");
+		printf("> ");
 		fgets(buffer, 255, stdin);
 		write((*sd), buffer, 255);
 	} while (strncmp(buffer, "exit", 4) != 0);
@@ -26,7 +27,7 @@ void* output(void* param) {
 	char buffer[256];
 	read((*sd), buffer, 255);
 	while (strncmp(buffer, "exit", 4) != 0) {
-		printf("\nServer > %s\nEnter what you want to say > ", buffer);
+		printf("%s\n> ", buffer);
 		read((*sd), buffer, 255);
 	}
 	return NULL;
@@ -52,9 +53,9 @@ int main(int argc, char** argv) {
 		if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == 0) {
 			do {
 				connect(sd, result->ai_addr, result->ai_addrlen);
-				printf("Still not connected...\n");
+				printf("Attempting to connect to bank...\n");
 			} while(errno == ECONNREFUSED);
-			printf("Connected to server!\n");
+			printf("Connected to bank server!\n");
 			pthread_t inputThread, outputThread;
 			if (pthread_create(&inputThread, NULL, input, &sd) != 0) {
 				printf("Error creating thread. Exiting.\n");

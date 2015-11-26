@@ -1,6 +1,6 @@
 ## TODO:
-#	multiple clients communicate to server
 #	command list
+#	change server output thread to make it real
 
 #	client tries to connect every 3 seconds if server isn't up
 #	struct account & accounts array
