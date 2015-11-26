@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include <pthread.h>
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
-
-const int MAX_CONNECTIONS = 20;
+#define MAX_CONNECTIONS 20
 
 struct account {
 	char* name;
@@ -15,15 +15,42 @@ struct account {
 };
 typedef struct account account_t;
 
-void open(char* accountname) {
-	// get real account name (no whitespace), cap at 100 chars
-	// throw error if account list is full
-	// throw error if accountname already exists
-	// don't allow this if client is already in a session
-	// set name, balance to zero
-	// tell client command could not be completed if accountIndex is not in correct range
+void ACreate(account_t* account, char* str, float money) {
+	account->name = str;
+	account->balance = money;
+	account->inSession = 0;
+	printf("account.name = \"%s\"\n", account->name);
+}
+
+char buffer[256];
+account_t accounts[MAX_CONNECTIONS];
+
+void open(char* accountname, int fd) {
+	int endIndex = 0;
+	while (isalpha(accountname[endIndex]) != 0 && endIndex < 100) {
+		endIndex++;
+	}
+	char nameFormatted[endIndex + 1];
+	strncat(nameFormatted, accountname, endIndex);
+	nameFormatted[endIndex] = 0x00;
+	int i = 0, accountNum = -1;
+	while (i < MAX_CONNECTIONS) {
+		if (strcmp(nameFormatted, accounts[i].name) == 0) {
+			sprintf(buffer, "Error: Account name \"%s\" alreayd exists. New account not created.\n", nameFormatted);
+			write(fd, buffer, 255);
+			return;
+		} else if (accountNum == -1 && strcmp(accounts[i].name, "") == 0) {
+			accountNum = i;
+		}
+		i++;
+	}
+	if (accountNum > 0 && accountNum < MAX_CONNECTIONS) {
+		ACreate(&(accounts[accountNum]), nameFormatted, 0.00);
+	}
+	// account creation not working. malloc?
 	// lock for client creation
-	printf("opening account: \"%s\"\n", accountname);
+	// don't allow this if client is already in a session
+	printf("opening account: \"%s\"\n", nameFormatted);
 }
 void start(char* accountname) {
 	// set accountIndex for thread (pass that var as a pointer?)
@@ -34,12 +61,11 @@ void start(char* accountname) {
 void* session(void* param) {
 	int accountIndex = -1;
 	int* fd = (int*) param;
-	char buffer[256];
 	read((*fd), buffer, 255);
 	while (strncmp(buffer, "exit", 4) != 0) {
 		read((*fd), buffer, 255);
 		if (strncmp(buffer, "open ", 5) == 0) {
-			open(buffer + 5);
+			open(buffer + 5, (*fd));
 		} else if (strncmp(buffer, "start ", 6) == 0) {
 			start(buffer + 6);
 		} else if (strncmp(buffer, "credit ", 7) == 0) {
@@ -74,8 +100,11 @@ int main() {
 	struct addrinfo* result;
 	getaddrinfo(NULL, "63777", &request, &result);
 	int sd;
-	char buffer[256];
-	account_t accounts[20];
+	int i = 0;
+	while (i < MAX_CONNECTIONS) {
+		ACreate(&accounts[i], "", 0.00);
+		i++;
+	}
 	if ((sd = socket(result->ai_family, result->ai_socktype, result->ai_protocol)) >= 0) {
 		int on = 1;
 		if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == 0) {

@@ -1,6 +1,8 @@
 ## TODO:
 #	command list
-#	change server output thread to make it real
+#	account.h
+#	unparsable server commands yell at clients
+#	make sure server thread shuts down when user exits
 
 #	client tries to connect every 3 seconds if server isn't up
 #	struct account & accounts array
