@@ -6,6 +6,8 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 
+const int MAX_CONNECTIONS = 20;
+
 void* input(void* param) {
 	int* fd = (int*) param;
 	char buffer[256];
@@ -44,23 +46,25 @@ int main() {
 		int on = 1;
 		if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == 0) {
 			if (bind(sd, result->ai_addr, result->ai_addrlen) == 0) {
-				listen(sd, 20);
+				listen(sd, MAX_CONNECTIONS);
 				struct sockaddr_in senderAddr;
+				pthread_t inputThread[MAX_CONNECTIONS], outputThread[MAX_CONNECTIONS];
 				int ic = sizeof(senderAddr);
+				int connectionNum = 0;
 				int fd;
 				printf("Waiting for client to connect...\n");
 				while ((fd = accept(sd, (struct sockaddr*) &senderAddr, &ic)) != 0) {
-					printf("Client connected!\n");
-					pthread_t inputThread, outputThread;
-					if (pthread_create(&inputThread, NULL, input, &fd) != 0) {
+					printf("\nClient connected!\n");
+					if (pthread_create(&inputThread[connectionNum], NULL, input, &fd) != 0) {
 						printf("Error creating thread. Exiting.\n");
 						return -1;
 					}
-					if (pthread_create(&outputThread, NULL, output, &fd) != 0) {
+					if (pthread_create(&outputThread[connectionNum], NULL, output, &fd) != 0) {
 						printf("Error creating thread. Exiting.\n");
 						return -1;
 					}
 				}
+				//pthread_join() here?
 			} else {
 				printf("Socket could not be bound to address. Exiting.\n");
 				freeaddrinfo(result);
