@@ -7,7 +7,9 @@
 #	server prints every 20 seconds
 #	client can only send commands every 2 seconds
 
-#	make sure server thread shuts down when user exits
+#	make sure client output thread shuts down when user exits
 #	server handles client getting killed
 #	client shuts down when server shuts down
+#	client formatting (>)
 #	test max clients
+#	complain about "open <non alpha name>"

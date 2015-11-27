@@ -9,14 +9,23 @@
 
 struct addrinfo* result;
 
+void clearBuffer(char* b) {
+	int i = 0;
+	while (i < 105) {
+		b[i] = '\0';
+		i++;
+	}
+}
 void* input(void* param) {
 	int* sd = (int*) param;
-	char buffer[256];
-	write((*sd), "hello", 255);
+	char buffer[105];
+	clearBuffer(buffer);
+	write((*sd), "hello", 105);
 	do {
 		printf("> ");
-		fgets(buffer, 255, stdin);
-		write((*sd), buffer, 255);
+		clearBuffer(buffer);
+		fgets(buffer, 105, stdin);
+		write((*sd), buffer, 105);
 	} while (strncmp(buffer, "exit", 4) != 0);
 	exit(0);
 	freeaddrinfo(result);

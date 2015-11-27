@@ -10,9 +10,16 @@
 #include "sorted-list.h"
 #define MAX_CONNECTIONS 20
 
-char buffer[256];
+char buffer[105];
 SortedListPtr accountList;
 
+void clearBuffer(char* b) {
+	int i = 0;
+	while (i < 105) {
+		b[i] = '\0';
+		i++;
+	}
+}
 int accountCmp(void* arg1, void* arg2) {
 	account_t* a1 = (account_t*) arg1;
 	account_t* a2 = (account_t*) arg2;
@@ -24,32 +31,40 @@ void accountDestroy(void* arg) {
 }
 account_t* open(char* accountname, int fd) {
 	int endIndex = 0;
-	while (isalpha(accountname[endIndex]) != 0 && endIndex < 100) {
+	while (isalpha(accountname[endIndex]) != 0) {
 		endIndex++;
 	}
-	char nameFormatted[endIndex + 1];
-	strncat(nameFormatted, accountname, endIndex);
-	nameFormatted[endIndex] = 0x00;
+	if (endIndex == 0) {
+		sprintf(buffer, "Error: Invalid account name. New account not created.\n");
+		write(fd, buffer, 105);
+		return NULL;
+	}
+	accountname[endIndex] = '\0';
+	printf("\"%s\"\n", accountname);
+	char nameFormatted[endIndex];
+	strncpy(nameFormatted, accountname, endIndex);
 	SortedListIteratorPtr iter = SLCreateIterator(accountList);
 	account_t* currentAccount = SLGetItem(iter);
 	while (currentAccount != NULL) {
-		if (strcmp(currentAccount->name, accountname) == 0) {
+		if (strcmp(currentAccount->name, nameFormatted) == 0) {
 			sprintf(buffer, "Error: Account name \"%s\" already exists. New account not created.\n", nameFormatted);
-			write(fd, buffer, 255);
+			write(fd, buffer, 105);
 			SLDestroyIterator(iter);
 			return NULL;
 		} else if (strcmp(currentAccount->name, "") == 0) {
-			ASetName(currentAccount, accountname);
+			ASetName(currentAccount, nameFormatted);
 			currentAccount->balance = 0.00;
-			// write to client "account created!"
-			printf("opening account: \"%s\"\n", nameFormatted);
+			printf("Attempting to create account \"%s\"\n", nameFormatted);
+			sprintf(buffer, "Account name \"%s\" successfully created.\n", nameFormatted);
+			write(fd, buffer, 105);
 			SLDestroyIterator(iter);
 			return currentAccount;
 		}
-		SLNextItem(iter);
+		currentAccount = SLNextItem(iter);
 	}
 	SLDestroyIterator(iter);
-	// write "accounts full, not created"
+	sprintf(buffer, "Error: Too many accounts. New account not created.\n", accountname);
+	write(fd, buffer, 105);
 	return NULL;
 	
 	// lock for client creation
@@ -60,14 +75,16 @@ void start(char* accountname) {
 	// set accountIndex for thread (pass that var as a pointer?)
 	// tell client command could not be completed if accountIndex is not in correct range
 	// check for concurrent sessions for same account (use inSession probably )
-	printf("starting session for account: \"%s\"", accountname);
+	printf("starting session for account: \"%s\"\n", accountname);
 }
 void* session(void* param) {
 	account_t* currentAccount = NULL;
 	int* fd = (int*) param;
-	read((*fd), buffer, 255);
+	clearBuffer(buffer);
+	read((*fd), buffer, 105);
 	while (strncmp(buffer, "exit", 4) != 0) {
-		read((*fd), buffer, 255);
+		clearBuffer(buffer);
+		read((*fd), buffer, 105);
 		if (strncmp(buffer, "open ", 5) == 0) {
 			currentAccount = open(buffer + 5, (*fd));
 		} else if (strncmp(buffer, "start ", 6) == 0) {
@@ -89,6 +106,7 @@ void* session(void* param) {
 			// set accountIndex to -1
 		}
 	}
+	printf("WE DONE HERE\n");
 	return NULL;
 }
 int main() {
