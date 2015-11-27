@@ -6,26 +6,23 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#include "account.h"
+#include "sorted-list.h"
 #define MAX_CONNECTIONS 20
 
-struct account {
-	char* name;
-	float balance;
-	int inSession : 1;
-};
-typedef struct account account_t;
-
-void ACreate(account_t* account, char* str, float money) {
-	account->name = str;
-	account->balance = money;
-	account->inSession = 0;
-	printf("account.name = \"%s\"\n", account->name);
-}
-
 char buffer[256];
-account_t accounts[MAX_CONNECTIONS];
+SortedListPtr accountList;
 
-void open(char* accountname, int fd) {
+int accountCmp(void* arg1, void* arg2) {
+	account_t* a1 = (account_t*) arg1;
+	account_t* a2 = (account_t*) arg2;
+	return strcmp(a1->name, a2->name);
+}
+void accountDestroy(void* arg) {
+	account_t* a = (account_t*) arg;
+	ADestroy(a);
+}
+account_t* open(char* accountname, int fd) {
 	int endIndex = 0;
 	while (isalpha(accountname[endIndex]) != 0 && endIndex < 100) {
 		endIndex++;
@@ -33,24 +30,31 @@ void open(char* accountname, int fd) {
 	char nameFormatted[endIndex + 1];
 	strncat(nameFormatted, accountname, endIndex);
 	nameFormatted[endIndex] = 0x00;
-	int i = 0, accountNum = -1;
-	while (i < MAX_CONNECTIONS) {
-		if (strcmp(nameFormatted, accounts[i].name) == 0) {
-			sprintf(buffer, "Error: Account name \"%s\" alreayd exists. New account not created.\n", nameFormatted);
+	SortedListIteratorPtr iter = SLCreateIterator(accountList);
+	account_t* currentAccount = SLGetItem(iter);
+	while (currentAccount != NULL) {
+		if (strcmp(currentAccount->name, accountname) == 0) {
+			sprintf(buffer, "Error: Account name \"%s\" already exists. New account not created.\n", nameFormatted);
 			write(fd, buffer, 255);
-			return;
-		} else if (accountNum == -1 && strcmp(accounts[i].name, "") == 0) {
-			accountNum = i;
+			SLDestroyIterator(iter);
+			return NULL;
+		} else if (strcmp(currentAccount->name, "") == 0) {
+			ASetName(currentAccount, accountname);
+			currentAccount->balance = 0.00;
+			// write to client "account created!"
+			printf("opening account: \"%s\"\n", nameFormatted);
+			SLDestroyIterator(iter);
+			return currentAccount;
 		}
-		i++;
+		SLNextItem(iter);
 	}
-	if (accountNum > 0 && accountNum < MAX_CONNECTIONS) {
-		ACreate(&(accounts[accountNum]), nameFormatted, 0.00);
-	}
-	// account creation not working. malloc?
+	SLDestroyIterator(iter);
+	// write "accounts full, not created"
+	return NULL;
+	
 	// lock for client creation
 	// don't allow this if client is already in a session
-	printf("opening account: \"%s\"\n", nameFormatted);
+	// write to client telling them account was successfully opened
 }
 void start(char* accountname) {
 	// set accountIndex for thread (pass that var as a pointer?)
@@ -59,13 +63,13 @@ void start(char* accountname) {
 	printf("starting session for account: \"%s\"", accountname);
 }
 void* session(void* param) {
-	int accountIndex = -1;
+	account_t* currentAccount = NULL;
 	int* fd = (int*) param;
 	read((*fd), buffer, 255);
 	while (strncmp(buffer, "exit", 4) != 0) {
 		read((*fd), buffer, 255);
 		if (strncmp(buffer, "open ", 5) == 0) {
-			open(buffer + 5, (*fd));
+			currentAccount = open(buffer + 5, (*fd));
 		} else if (strncmp(buffer, "start ", 6) == 0) {
 			start(buffer + 6);
 		} else if (strncmp(buffer, "credit ", 7) == 0) {
@@ -100,9 +104,10 @@ int main() {
 	struct addrinfo* result;
 	getaddrinfo(NULL, "63777", &request, &result);
 	int sd;
+	accountList = SLCreate(accountCmp, accountDestroy); 
 	int i = 0;
 	while (i < MAX_CONNECTIONS) {
-		ACreate(&accounts[i], "", 0.00);
+		SLInsert(accountList, ACreate("", 0.00));
 		i++;
 	}
 	if ((sd = socket(result->ai_family, result->ai_socktype, result->ai_protocol)) >= 0) {
