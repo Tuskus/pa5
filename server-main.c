@@ -178,6 +178,8 @@ void* session(void* param) {
 				currentAccount->inSession = 1;
 				currentAccount = NULL;
 			}
+		} else {
+			write((*fd), "Error: Invalid command added.\n", 256);
 		}
 	}
 	if (currentAccount != NULL) {

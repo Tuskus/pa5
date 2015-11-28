@@ -22,8 +22,8 @@ void* input(void* param) {
 	clearBuffer(buffer);
 	write((*sd), "hello", 256);
 	do {
-		printf("> ");
 		clearBuffer(buffer);
+		printf("\n> ");
 		fgets(buffer, 256, stdin);
 		write((*sd), buffer, 256);
 	} while (strncmp(buffer, "exit", 4) != 0);
