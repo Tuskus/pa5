@@ -1,6 +1,7 @@
 ## TODO:
-#	command list
+#	debit and credit
 #	unparsable server commands yell at clients
+#	cap account name to 100 chars
 
 #	client tries to connect every 3 seconds if server isn't up
 #	struct account & accounts array

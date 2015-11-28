@@ -11,21 +11,21 @@ struct addrinfo* result;
 
 void clearBuffer(char* b) {
 	int i = 0;
-	while (i < 105) {
+	while (i < 256) {
 		b[i] = '\0';
 		i++;
 	}
 }
 void* input(void* param) {
 	int* sd = (int*) param;
-	char buffer[105];
+	char buffer[256];
 	clearBuffer(buffer);
-	write((*sd), "hello", 105);
+	write((*sd), "hello", 256);
 	do {
 		printf("> ");
 		clearBuffer(buffer);
-		fgets(buffer, 105, stdin);
-		write((*sd), buffer, 105);
+		fgets(buffer, 256, stdin);
+		write((*sd), buffer, 256);
 	} while (strncmp(buffer, "exit", 4) != 0);
 	exit(0);
 	freeaddrinfo(result);

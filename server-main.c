@@ -11,12 +11,12 @@
 #define MAX_CONNECTIONS 20
 
 pthread_mutex_t createLock;
-char buffer[105];
+char buffer[256];
 SortedListPtr accountList;
 
 void clearBuffer(char* b) {
 	int i = 0;
-	while (i < 105) {
+	while (i < 256) {
 		b[i] = '\0';
 		i++;
 	}
@@ -30,6 +30,20 @@ void accountDestroy(void* arg) {
 	account_t* a = (account_t*) arg;
 	ADestroy(a);
 }
+float parseFloat(char* str) {
+	int endIndex = 0;
+	while (isdigit(str[endIndex]) != 0 || str[endIndex] == '.' || str[endIndex] == '-') {
+		endIndex++;
+	}
+	if (endIndex == 0) {
+		return 0.0f;
+	}
+	str[endIndex] = '\0';
+	char moneyStr[endIndex + 1];
+	strncpy(moneyStr, str, endIndex + 1);
+	printf("\"$%s\"\n", moneyStr);
+	return (float) atof(moneyStr);
+}
 void open(char* accountname, int fd) {
 	int endIndex = 0;
 	while (isalpha(accountname[endIndex]) != 0) {
@@ -37,7 +51,7 @@ void open(char* accountname, int fd) {
 	}
 	if (endIndex == 0) {
 		sprintf(buffer, "Error: Invalid account name. New account not created.\n");
-		write(fd, buffer, 105);
+		write(fd, buffer, 256);
 		return;
 	}
 	accountname[endIndex] = '\0';
@@ -49,7 +63,7 @@ void open(char* accountname, int fd) {
 	while (currentAccount != NULL) {
 		if (strcmp(currentAccount->name, nameFormatted) == 0) {
 			sprintf(buffer, "Error: Account name \"%s\" already exists. New account not created.\n", nameFormatted);
-			write(fd, buffer, 105);
+			write(fd, buffer, 256);
 			SLDestroyIterator(iter);
 			pthread_mutex_unlock(&createLock);
 			return;
@@ -57,7 +71,7 @@ void open(char* accountname, int fd) {
 			ASetName(currentAccount, nameFormatted);
 			currentAccount->balance = 0.00;
 			sprintf(buffer, "Account name \"%s\" successfully created.\n", nameFormatted);
-			write(fd, buffer, 105);
+			write(fd, buffer, 256);
 			SLDestroyIterator(iter);
 			pthread_mutex_unlock(&createLock);
 			return;
@@ -67,7 +81,7 @@ void open(char* accountname, int fd) {
 	SLDestroyIterator(iter);
 	pthread_mutex_unlock(&createLock);
 	sprintf(buffer, "Error: Too many accounts. New account not created.\n", nameFormatted);
-	write(fd, buffer, 105);
+	write(fd, buffer, 256);
 }
 account_t* start(char* accountname, int fd) {
 	int endIndex = 0;
@@ -76,7 +90,7 @@ account_t* start(char* accountname, int fd) {
 	}
 	if (endIndex == 0) {
 		sprintf(buffer, "Error: Invalid account name. Session not started.\n");
-		write(fd, buffer, 105);
+		write(fd, buffer, 256);
 		return NULL;
 	}
 	accountname[endIndex] = '\0';
@@ -87,11 +101,11 @@ account_t* start(char* accountname, int fd) {
 	while (currentAccount != NULL) {
 		if (strcmp(currentAccount->name, nameFormatted) == 0) {
 			if (currentAccount->inSession == 0) {
-				write(fd, "Error: Account is already in session. Session not started.\n", 105);
+				write(fd, "Error: Account is already in session. Session not started.\n", 256);
 				return NULL;
 			} else {
 				sprintf(buffer, "Session started for account \"%s\".\n", nameFormatted);
-				write(fd, buffer, 105);
+				write(fd, buffer, 256);
 				SLDestroyIterator(iter);
 				pthread_mutex_unlock(&createLock);
 				return currentAccount;
@@ -101,47 +115,67 @@ account_t* start(char* accountname, int fd) {
 	}
 	SLDestroyIterator(iter);
 	sprintf(buffer, "Error: Account \"%s\" not found. Session not started.\n", nameFormatted);
-	write(fd, buffer, 105);
+	write(fd, buffer, 256);
 	return NULL;
 }
 void* session(void* param) {
 	account_t* currentAccount = NULL;
 	int* fd = (int*) param;
 	clearBuffer(buffer);
-	read((*fd), buffer, 105);
+	read((*fd), buffer, 256);
 	while (strncmp(buffer, "exit", 4) != 0) {
 		clearBuffer(buffer);
-		read((*fd), buffer, 105);
+		read((*fd), buffer, 256);
 		if (strncmp(buffer, "open ", 5) == 0) {
 				open(buffer + 5, (*fd));
 		} else if (strncmp(buffer, "start ", 6) == 0) {
 			if (currentAccount == NULL) {
 				currentAccount = start(buffer + 6, (*fd));
 			} else {
-				write((*fd), "Error: User is already in session with another account. Session not started.\n", 105);
+				write((*fd), "Error: User is already in session with another account. Session not started.\n", 256);
 			}
 		} else if (strncmp(buffer, "credit ", 7) == 0) {
-			// tell client command could not be completed if accountIndex is not in correct range
-			// in a seperate function:
-				// check to make sure number is floating point
-				// add number to balance
+			if (currentAccount == NULL) {
+				write((*fd), "Error: User is not currently in a session.\n", 256);
+			} else {
+				float money = parseFloat(buffer + 7);
+				if (money == 0.0f) {
+					write((*fd), "Error: Could not parse money value. Money not added.\n", 256);
+				} else {
+					currentAccount->balance += money;
+					sprintf(buffer, "$%f successfully added to account \"%s\".\n", money, currentAccount->name);
+					write((*fd), buffer, 256);
+				}
+			}
 		} else if (strncmp(buffer, "debit ", 6) == 0) {
-			// tell client command could not be completed if accountIndex is not in correct range
-			// complain if amount to subtract is greater than current balance
-			// use same function as credit if it checks out
+			if (currentAccount == NULL) {
+				write((*fd), "Error: User is not currently in a session.\n", 256);
+			} else {
+				float money = parseFloat(buffer + 6);
+				if (money == 0.0f) {
+					write((*fd), "Error: Could not parse money value. Money not added.\n", 256);
+				} else if (-money > currentAccount->balance) {
+					write((*fd), "Error: Money exceeds current balance of account. Money not added.\n", 256);
+				} else {
+					currentAccount->balance += money;
+					sprintf(buffer, "$%f successfully added to account \"%s\".\n", money, currentAccount->name);
+					write((*fd), buffer, 256);
+				}
+			}
 		} else if (strncmp(buffer, "balance", 7) == 0) {
 			if (currentAccount == NULL) {
-				write((*fd), "Error: User is not currently in a session.\n", 105);
+				write((*fd), "Error: User is not currently in a session.\n", 256);
 			} else {
 				sprintf(buffer, "Account \"%s\" has $%f\n", currentAccount->name, currentAccount->balance);
-				write((*fd), buffer, 105);
+				write((*fd), buffer, 256);
 			}
 		} else if (strncmp(buffer, "finish", 6) == 0) {
 			if (currentAccount == NULL) {
-				write((*fd), "Error: User is not currently in a session.\n", 105);
+				write((*fd), "Error: User is not currently in a session.\n", 256);
 			} else {
 				sprintf(buffer, "Account \"%s\" closed.\n", currentAccount->name);
-				write((*fd), buffer, 105);
+				write((*fd), buffer, 256);
+				currentAccount->inSession = 1;
 				currentAccount = NULL;
 			}
 		}
