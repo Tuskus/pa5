@@ -11,6 +11,7 @@
 #define MAX_CONNECTIONS 20
 
 char buffer[105];
+pthread_mutex_lock createLock;
 SortedListPtr accountList;
 
 void clearBuffer(char* b) {
@@ -40,9 +41,9 @@ account_t* open(char* accountname, int fd) {
 		return NULL;
 	}
 	accountname[endIndex] = '\0';
-	printf("\"%s\"\n", accountname);
 	char nameFormatted[endIndex];
 	strncpy(nameFormatted, accountname, endIndex);
+	pthread_mutex_lock(&createLock);
 	SortedListIteratorPtr iter = SLCreateIterator(accountList);
 	account_t* currentAccount = SLGetItem(iter);
 	while (currentAccount != NULL) {
@@ -50,26 +51,24 @@ account_t* open(char* accountname, int fd) {
 			sprintf(buffer, "Error: Account name \"%s\" already exists. New account not created.\n", nameFormatted);
 			write(fd, buffer, 105);
 			SLDestroyIterator(iter);
+			pthread_mutex_unlock(&createLock);
 			return NULL;
 		} else if (strcmp(currentAccount->name, "") == 0) {
 			ASetName(currentAccount, nameFormatted);
 			currentAccount->balance = 0.00;
-			printf("Attempting to create account \"%s\"\n", nameFormatted);
 			sprintf(buffer, "Account name \"%s\" successfully created.\n", nameFormatted);
 			write(fd, buffer, 105);
 			SLDestroyIterator(iter);
+			pthread_mutex_unlock(&createLock);
 			return currentAccount;
 		}
 		currentAccount = SLNextItem(iter);
 	}
 	SLDestroyIterator(iter);
+	pthread_mutex_unlock(&createLock);
 	sprintf(buffer, "Error: Too many accounts. New account not created.\n", accountname);
 	write(fd, buffer, 105);
 	return NULL;
-	
-	// lock for client creation
-	// don't allow this if client is already in a session
-	// write to client telling them account was successfully opened
 }
 void start(char* accountname) {
 	// set accountIndex for thread (pass that var as a pointer?)
@@ -86,7 +85,11 @@ void* session(void* param) {
 		clearBuffer(buffer);
 		read((*fd), buffer, 105);
 		if (strncmp(buffer, "open ", 5) == 0) {
-			currentAccount = open(buffer + 5, (*fd));
+			if (currentAccount == NULL) {
+				currentAccount = open(buffer + 5, (*fd));
+			} else {
+				write(fd, "Error: User is already in session with another account.\n", 105);
+			}
 		} else if (strncmp(buffer, "start ", 6) == 0) {
 			start(buffer + 6);
 		} else if (strncmp(buffer, "credit ", 7) == 0) {
@@ -106,7 +109,6 @@ void* session(void* param) {
 			// set accountIndex to -1
 		}
 	}
-	printf("WE DONE HERE\n");
 	return NULL;
 }
 int main() {
@@ -121,6 +123,10 @@ int main() {
 	request.ai_next = NULL;
 	struct addrinfo* result;
 	getaddrinfo(NULL, "63777", &request, &result);
+	if (pthread_mutex_init(&createLock, 0) != 0) {
+		printf("Error creating mutex lock. Exiting.\n");
+		return -1;
+	}
 	int sd;
 	accountList = SLCreate(accountCmp, accountDestroy); 
 	int i = 0;
