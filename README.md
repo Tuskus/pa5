@@ -1,7 +1,6 @@
 ## TODO:
 #	command list
 #	unparsable server commands yell at clients
-#	start <unopened account>, open <new user>, "already in session"
 
 #	client tries to connect every 3 seconds if server isn't up
 #	struct account & accounts array

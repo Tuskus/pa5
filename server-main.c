@@ -118,7 +118,7 @@ void* session(void* param) {
 			if (currentAccount == NULL) {
 				currentAccount = start(buffer + 6, (*fd));
 			} else {
-				write((*fd), "Error: User is already in session with another account. Session not started\n", 105);
+				write((*fd), "Error: User is already in session with another account. Session not started.\n", 105);
 			}
 		} else if (strncmp(buffer, "credit ", 7) == 0) {
 			// tell client command could not be completed if accountIndex is not in correct range
@@ -129,9 +129,13 @@ void* session(void* param) {
 			// tell client command could not be completed if accountIndex is not in correct range
 			// complain if amount to subtract is greater than current balance
 			// use same function as credit if it checks out
-		} else if (strncmp(buffer, "balance ", 8) == 0) {
-			// tell client command could not be completed if accountIndex is not in correct range
-			// send client balance number
+		} else if (strncmp(buffer, "balance", 7) == 0) {
+			if (currentAccount == NULL) {
+				write((*fd), "Error: User is not currently in a session.\n", 105);
+			} else {
+				sprintf(buffer, "Account \"%s\" has $%f\n", currentAccount->name, currentAccount->balance);
+				write((*fd), buffer, 105);
+			}
 		} else if (strncmp(buffer, "finish", 6) == 0) {
 			if (currentAccount == NULL) {
 				write((*fd), "Error: User is not currently in a session.\n", 105);
@@ -140,7 +144,6 @@ void* session(void* param) {
 				write((*fd), buffer, 105);
 				currentAccount = NULL;
 			}
-			// tell client command could not be completed if accountIndex is not in correct range
 		}
 	}
 	if (currentAccount != NULL) {
