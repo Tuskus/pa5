@@ -10,8 +10,8 @@
 #include "sorted-list.h"
 #define MAX_CONNECTIONS 20
 
+pthread_mutex_t createLock;
 char buffer[105];
-pthread_mutex_lock createLock;
 SortedListPtr accountList;
 
 void clearBuffer(char* b) {
@@ -30,7 +30,7 @@ void accountDestroy(void* arg) {
 	account_t* a = (account_t*) arg;
 	ADestroy(a);
 }
-account_t* open(char* accountname, int fd) {
+void open(char* accountname, int fd) {
 	int endIndex = 0;
 	while (isalpha(accountname[endIndex]) != 0) {
 		endIndex++;
@@ -38,11 +38,11 @@ account_t* open(char* accountname, int fd) {
 	if (endIndex == 0) {
 		sprintf(buffer, "Error: Invalid account name. New account not created.\n");
 		write(fd, buffer, 105);
-		return NULL;
+		return;
 	}
 	accountname[endIndex] = '\0';
-	char nameFormatted[endIndex];
-	strncpy(nameFormatted, accountname, endIndex);
+	char nameFormatted[endIndex + 1];
+	strncpy(nameFormatted, accountname, endIndex + 1);
 	pthread_mutex_lock(&createLock);
 	SortedListIteratorPtr iter = SLCreateIterator(accountList);
 	account_t* currentAccount = SLGetItem(iter);
@@ -52,7 +52,7 @@ account_t* open(char* accountname, int fd) {
 			write(fd, buffer, 105);
 			SLDestroyIterator(iter);
 			pthread_mutex_unlock(&createLock);
-			return NULL;
+			return;
 		} else if (strcmp(currentAccount->name, "") == 0) {
 			ASetName(currentAccount, nameFormatted);
 			currentAccount->balance = 0.00;
@@ -60,21 +60,49 @@ account_t* open(char* accountname, int fd) {
 			write(fd, buffer, 105);
 			SLDestroyIterator(iter);
 			pthread_mutex_unlock(&createLock);
-			return currentAccount;
+			return;
 		}
 		currentAccount = SLNextItem(iter);
 	}
 	SLDestroyIterator(iter);
 	pthread_mutex_unlock(&createLock);
-	sprintf(buffer, "Error: Too many accounts. New account not created.\n", accountname);
+	sprintf(buffer, "Error: Too many accounts. New account not created.\n", nameFormatted);
+	write(fd, buffer, 105);
+}
+account_t* start(char* accountname, int fd) {
+	int endIndex = 0;
+	while (isalpha(accountname[endIndex]) != 0) {
+		endIndex++;
+	}
+	if (endIndex == 0) {
+		sprintf(buffer, "Error: Invalid account name. Session not started.\n");
+		write(fd, buffer, 105);
+		return NULL;
+	}
+	accountname[endIndex] = '\0';
+	char nameFormatted[endIndex + 1];
+	strncpy(nameFormatted, accountname, endIndex + 1);
+	SortedListIteratorPtr iter = SLCreateIterator(accountList);
+	account_t* currentAccount = SLGetItem(iter);
+	while (currentAccount != NULL) {
+		if (strcmp(currentAccount->name, nameFormatted) == 0) {
+			if (currentAccount->inSession == 0) {
+				write(fd, "Error: Account is already in session. Session not started.\n", 105);
+				return NULL;
+			} else {
+				sprintf(buffer, "Session started for account \"%s\".\n", nameFormatted);
+				write(fd, buffer, 105);
+				SLDestroyIterator(iter);
+				pthread_mutex_unlock(&createLock);
+				return currentAccount;
+			}
+		}
+		currentAccount = SLNextItem(iter);
+	}
+	SLDestroyIterator(iter);
+	sprintf(buffer, "Error: Account \"%s\" not found. Session not started.\n", nameFormatted);
 	write(fd, buffer, 105);
 	return NULL;
-}
-void start(char* accountname) {
-	// set accountIndex for thread (pass that var as a pointer?)
-	// tell client command could not be completed if accountIndex is not in correct range
-	// check for concurrent sessions for same account (use inSession probably )
-	printf("starting session for account: \"%s\"\n", accountname);
 }
 void* session(void* param) {
 	account_t* currentAccount = NULL;
@@ -85,13 +113,13 @@ void* session(void* param) {
 		clearBuffer(buffer);
 		read((*fd), buffer, 105);
 		if (strncmp(buffer, "open ", 5) == 0) {
-			if (currentAccount == NULL) {
-				currentAccount = open(buffer + 5, (*fd));
-			} else {
-				write(fd, "Error: User is already in session with another account.\n", 105);
-			}
+				open(buffer + 5, (*fd));
 		} else if (strncmp(buffer, "start ", 6) == 0) {
-			start(buffer + 6);
+			if (currentAccount == NULL) {
+				currentAccount = start(buffer + 6, (*fd));
+			} else {
+				write((*fd), "Error: User is already in session with another account. Session not started\n", 105);
+			}
 		} else if (strncmp(buffer, "credit ", 7) == 0) {
 			// tell client command could not be completed if accountIndex is not in correct range
 			// in a seperate function:
@@ -104,10 +132,19 @@ void* session(void* param) {
 		} else if (strncmp(buffer, "balance ", 8) == 0) {
 			// tell client command could not be completed if accountIndex is not in correct range
 			// send client balance number
-		} else if (strncmp(buffer, "finish ", 7) == 0) {
+		} else if (strncmp(buffer, "finish", 6) == 0) {
+			if (currentAccount == NULL) {
+				write((*fd), "Error: User is not currently in a session.\n", 105);
+			} else {
+				sprintf(buffer, "Account \"%s\" closed.\n", currentAccount->name);
+				write((*fd), buffer, 105);
+				currentAccount = NULL;
+			}
 			// tell client command could not be completed if accountIndex is not in correct range
-			// set accountIndex to -1
 		}
+	}
+	if (currentAccount != NULL) {
+		currentAccount->inSession = 1;
 	}
 	return NULL;
 }
