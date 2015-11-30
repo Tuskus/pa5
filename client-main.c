@@ -1,14 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <pthread.h>
 #include <netdb.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-
+#define PORT "63777"
 struct addrinfo* result;
-
 void clearBuffer(char* b) {
 	int i = 0;
 	while (i < 256) {
@@ -16,20 +16,25 @@ void clearBuffer(char* b) {
 		i++;
 	}
 }
-void* input(void* param) {
-	int* sd = (int*) param;
-	char buffer[256];
+void* input(void* param)
+{
+  int* sd = (int*) param;
+  char buffer[256];  
+  clearBuffer(buffer);
+  while (1) {
 	clearBuffer(buffer);
-	write((*sd), "hello", 256);
-	do {
-		clearBuffer(buffer);
-		printf("\n> ");
-		fgets(buffer, 256, stdin);
-		write((*sd), buffer, 256);
-	} while (strncmp(buffer, "exit", 4) != 0);
-	exit(0);
-	freeaddrinfo(result);
-	return NULL;
+	printf("\n> ");
+    printf("Enter command: \n");
+    if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
+      printf("Invalid input.\n");
+      continue;
+    }
+    if (strncmp(buffer, "exit", 4) == 0) {
+      pthread_exit(NULL);
+    }
+    sleep(2);
+  }
+  freeaddrinfo(result);
 }
 void* output(void* param) {
 	int* sd = (int*) param;
@@ -42,11 +47,16 @@ void* output(void* param) {
 	return NULL;
 }
 int main(int argc, char** argv) {
+    int status;
+	struct addrinfo request;
+	int sd;
+    struct addrinfo *p;
+    pthread_t inputThread, outputThread;
+
 	if (argc < 2) {
 		printf("You need to enter the address of the server. Exiting.\n");
 		return -1;
 	}
-	struct addrinfo request;
 	request.ai_flags = 0;
 	request.ai_family = AF_INET;
 	request.ai_socktype = SOCK_STREAM;
@@ -55,43 +65,44 @@ int main(int argc, char** argv) {
 	request.ai_addr = NULL;
 	request.ai_canonname = NULL;
 	request.ai_next = NULL;
-	getaddrinfo(argv[1], "63777", &request, &result);
-	int sd;
-	if ((sd = socket(result->ai_family, result->ai_socktype, result->ai_protocol)) >= 0) {
-		int on = 1;
-		if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == 0) {
-			do {
-				connect(sd, result->ai_addr, result->ai_addrlen);
-				printf("Attempting to connect to bank...\n");
-			} while(errno == ECONNREFUSED);
-			printf("Connected to bank server!\n");
-			pthread_t inputThread, outputThread;
-			if (pthread_create(&inputThread, NULL, input, &sd) != 0) {
-				printf("Error creating thread. Exiting.\n");
-				return -1;
-			}
-			if (pthread_create(&outputThread, NULL, output, &sd) != 0) {
-				printf("Error creating thread. Exiting.\n");
-				return -1;
-			}
-			if (pthread_join(inputThread, NULL) != 0) {
-				printf("Error joining thread. Exiting.\n");
-				return -1;
-			}
-			if (pthread_join(outputThread, NULL) != 0) {
-				printf("Error joining thread. Exiting.\n");
-				return -1;
-			}
-		} else {
-			printf("Socket options could not be set. Exiting.\n");
-			freeaddrinfo(result);
-			return -1;
-		}
-	} else {
-		printf("Socket could not be opened. Exiting.\n");
-		freeaddrinfo(result);
+	if ((status = getaddrinfo(argv[1], PORT, &request, &result)) != 0) {
+      fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
+      exit(1);
+    }
+    printf("Attempting to connect to bank...\n");
+    while (1) {
+    for (p = result; p != NULL; p = p->ai_next) {
+      if ((sd = socket(p->ai_family, p->ai_socktype, p->ai_protocol))  >= 0) {
+        continue;
+      } 
+      if (connect(sd, p->ai_addr, p->ai_addrlen) == 0) {
+        close(sd);
+        continue;
+      }
+      break;
+	  }
+      if (p != NULL) {
+        break;
+      }
+      printf("hello\n");
+      sleep(3);
+    }
+    freeaddrinfo(result);
+	if (pthread_create(&inputThread, NULL, input, &sd) != 0) {
+       printf("Error creating thread. Exiting.\n");
+	   return -1;
+	}
+	if (pthread_create(&outputThread, NULL, output, &sd) != 0) {
+		printf("Error creating thread. Exiting.\n");
 		return -1;
 	}
-	freeaddrinfo(result);
+	if (pthread_join(inputThread, NULL) != 0) {
+		printf("Error joining thread. Exiting.\n");
+		return -1;
+	}
+	if (pthread_join(outputThread, NULL) != 0) {
+		printf("Error joining thread. Exiting.\n");
+		return -1;
+	}
 	return 0;
 }
