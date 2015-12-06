@@ -54,7 +54,6 @@ int main(int argc, char** argv) {
 	int sd;
     struct addrinfo *p;
     pthread_t inputThread, outputThread;
-
 	if (argc < 2) {
 		printf("You need to enter the address of the server. Exiting.\n");
 		return -1;

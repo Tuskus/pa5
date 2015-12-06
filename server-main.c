@@ -49,7 +49,7 @@ void open(char* accountname, int fd) {
 	while (isalpha(accountname[endIndex]) != 0) {
 		endIndex++;
 	}
-	if (endIndex == 0) {
+	if (endIndex == 0 && endIndex < 100) {
 		sprintf(buffer, "Error: Invalid account name. New account not created.\n");
 		write(fd, buffer, 256);
 		return;
@@ -226,7 +226,7 @@ int main() {
 						return -1;
 					}
 				}
-				//pthread_join() here?
+				pthread_join();
 			} else {
 				printf("Socket could not be bound to address. Exiting.\n");
 				freeaddrinfo(result);
