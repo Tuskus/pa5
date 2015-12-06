@@ -8,6 +8,9 @@
 #include <sys/ioctl.h>
 #include "account.h"
 #include "sorted-list.h"
+#include <sys/time.h>
+#include <signal.h>
+
 #define MAX_CONNECTIONS 20
 
 pthread_mutex_t createLock;
@@ -186,6 +189,40 @@ void* session(void* param) {
 	}
 	return NULL;
 }
+void setTimer(int seconds){	
+	struct itimerval timer;
+	timer.it_value.tv_sec = seconds;
+	timer.it_value.tv_usec = 0;
+	timer.it_interval.tv_sec = seconds;
+	timer.it_interval.tv_usec = 0;
+	setitimer (ITIMER_REAL, &timer, NULL);
+}
+void printStatus(int signum){
+	SortedListIteratorPtr iter = SLCreateIterator(accountList);
+	account_t* acc = SLGetItem(iter);
+	if(pthread_mutex_trylock(&createLock) == 0){
+		printf("Bank Information:\n\n");
+	if (strcmp(acc->name, "") == 0) {
+		printf("Empty bank.\n");
+	} else {
+		while(acc !=  NULL){
+			char* name = acc->name;
+			double balance = acc->balance;
+            int active = acc->inSession;
+			printf("Name: %s\nBalance: $%.2f\n", name, balance);
+            if (active == 0) {
+				printf("IN SERVICE");
+			}
+			acc = SLNextItem(iter);				
+		}
+	}
+	printf("*****\n");
+	pthread_mutex_unlock(&createLock);
+	}
+	else{
+		printf("error creating mutex\n");	
+	}
+}
 int main() {
 	struct addrinfo request;
 	request.ai_flags = AI_PASSIVE;
@@ -209,6 +246,12 @@ int main() {
 		SLInsert(accountList, ACreate("", 0.00));
 		i++;
 	}
+	struct sigaction sa;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	sa.sa_handler = printStatus;
+	sigaction (SIGALRM, &sa, NULL);
+	setTimer(20);
 	if ((sd = socket(result->ai_family, result->ai_socktype, result->ai_protocol)) >= 0) {
 		int on = 1;
 		if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == 0) {
@@ -243,3 +286,4 @@ int main() {
 	freeaddrinfo(result);
 	return 0;
 }
+
