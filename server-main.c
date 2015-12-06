@@ -122,10 +122,10 @@ void* session(void* param) {
 	account_t* currentAccount = NULL;
 	int* fd = (int*) param;
 	clearBuffer(buffer);
-	read((*fd), buffer, 256);
-	while (strncmp(buffer, "exit", 4) != 0) {
+	int readLength = read((*fd), buffer, 256);
+	while (readLength != 0 && strncmp(buffer, "exit", 4) != 0) {
 		clearBuffer(buffer);
-		read((*fd), buffer, 256);
+		readLength = read((*fd), buffer, 256);
 		if (strncmp(buffer, "open ", 5) == 0) {
 				open(buffer + 5, (*fd));
 		} else if (strncmp(buffer, "start ", 6) == 0) {
@@ -220,9 +220,7 @@ int main() {
 				int ic = sizeof(senderAddr);
 				int connectionNum = 0;
 				int fd;
-				printf("Waiting for client to connect...\n");
 				while ((fd = accept(sd, (struct sockaddr*) &senderAddr, &ic)) != 0) {
-					printf("\nClient connected!\n");
 					if (pthread_create(&sessionThread[connectionNum], NULL, session, &fd) != 0) {
 						printf("Error creating thread. Exiting.\n");
 						return -1;

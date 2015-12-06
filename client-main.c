@@ -30,20 +30,22 @@ void* input(void* param)
       continue;
     }
     if (strncmp(buffer, "exit", 4) == 0) {
-      pthread_exit(NULL);
+	  printf("Bank server closed. Exiting program.");
+      freeaddrinfo(result);
+      exit(0);
     }
     sleep(2);
   }
-  freeaddrinfo(result);
 }
 void* output(void* param) {
 	int* sd = (int*) param;
 	char buffer[256];
-	read((*sd), buffer, 255);
-	while (strncmp(buffer, "exit", 4) != 0) {
+	int readLength = read((*sd), buffer, 255);
+	while (readLength != 0) {
 		printf("%s\n> ", buffer);
-		read((*sd), buffer, 255);
+		readLength = read((*sd), buffer, 255);
 	}
+	exit(0);
 	return NULL;
 }
 int main(int argc, char** argv) {
