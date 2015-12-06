@@ -41,7 +41,6 @@ float parseFloat(char* str) {
 	str[endIndex] = '\0';
 	char moneyStr[endIndex + 1];
 	strncpy(moneyStr, str, endIndex + 1);
-	printf("\"$%s\"\n", moneyStr);
 	return (float) atof(moneyStr);
 }
 void open(char* accountname, int fd) {
@@ -49,7 +48,7 @@ void open(char* accountname, int fd) {
 	while (isalpha(accountname[endIndex]) != 0) {
 		endIndex++;
 	}
-	if (endIndex == 0 && endIndex < 100) {
+	if (endIndex == 0) {
 		sprintf(buffer, "Error: Invalid account name. New account not created.\n");
 		write(fd, buffer, 256);
 		return;
@@ -226,7 +225,6 @@ int main() {
 						return -1;
 					}
 				}
-				pthread_join();
 			} else {
 				printf("Socket could not be bound to address. Exiting.\n");
 				freeaddrinfo(result);
