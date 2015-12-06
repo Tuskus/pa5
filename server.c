@@ -206,12 +206,14 @@ void printStatus(int signum){
 		printf("Empty bank.\n");
 	} else {
 		while(acc !=  NULL){
-			char* name = acc->name;
-			double balance = acc->balance;
-            int active = acc->inSession;
-			printf("Name: %s\nBalance: $%.2f\n", name, balance);
-            if (active == 0) {
-				printf("IN SERVICE");
+			if (strcmp(acc->name, "") != 0) {
+				char* name = acc->name;
+				double balance = acc->balance;
+				int active = acc->inSession;
+				printf("Name: %s\nBalance: $%.2f\n", name, balance);
+				if (active == 0) {
+					printf("IN SERVICE");
+				}
 			}
 			acc = SLNextItem(iter);				
 		}
@@ -243,7 +245,7 @@ int main() {
 	accountList = SLCreate(accountCmp, accountDestroy); 
 	int i = 0;
 	while (i < MAX_CONNECTIONS) {
-		SLInsert(accountList, ACreate("", 0.00));
+		SLInsert(accountList, ACreate("\0", 0.00));
 		i++;
 	}
 	struct sigaction sa;

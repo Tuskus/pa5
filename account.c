@@ -6,6 +6,7 @@ account_t* ACreate(char* newName, float money) {
 	account_t* result = (account_t*) malloc(sizeof(account_t*));
 	result->name = (char*) malloc(strlen(newName + 1));
 	strcat(result->name, newName);
+	strcat(result->name, "\0");
 	result->balance = money;
 	result->inSession = 1;
 	return result;
